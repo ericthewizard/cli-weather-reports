@@ -88,4 +88,11 @@ out = openai.Completion.create(
     top_p=args.top_p,
 )
 
-print(out['choices'][0]['text'])
+response = out['choices'][0]['text']
+
+if response[0:2] == '\n\n':
+    response = response[2:]
+elif response[0] == '\n':
+    response = response[1:]
+
+print(response)

@@ -61,3 +61,13 @@ Go out and enjoy the day, and don't forget to take flight.
 The weather today is perfect, so don't miss out on the fun,
 For there won't be any more updates until tomorrow has come.
 ```
+
+### Custom style, tone and temperature
+```bash
+weather --style haiku --tone excited --temperature 0.9
+```
+```bash
+Clouds are so close,
+Sunlight peers through up above.
+Fifty-five degrees!
+```

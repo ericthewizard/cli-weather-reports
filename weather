@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+
+import argparse
+import openai
+import os
+import requests
+import datetime
+import pytz
+
+# Get OpenAI API key from environment variable
+openai.api_key = os.environ['OPENAI_API_KEY']
+city = os.environ['WEATHER_CITY']
+geo_key = os.environ['GEO_KEY']
+pirate_key = os.environ['PIRATE_KEY']
+
+
+parser = argparse.ArgumentParser(description='AI-powered weather reports')
+parser.add_argument('--style', default='local news', type=str, help='writing style (default: local news)')
+parser.add_argument('--tone', default='calm and peaceful', type=str, help='writing tone (default: calm and peaceful)')
+parser.add_argument('--temperature', default=0.0, type=float, help='sampling temperature (default: 0.0)')
+parser.add_argument('--top_p', default=1.0, type=float, help='top-p filtering value (default: 1.0)')
+
+# Parse command line arguments
+args = parser.parse_args()
+
+
+def get_lat_lon(city):
+  # Get the city's latitude and longitude from an external geocoding service
+  response = requests.get(f'https://api.opencagedata.com/geocode/v1/json?q={city}&key={geo_key}')
+  data = response.json()
+  # Extract the latitude and longitude from the API response
+  lat = data['results'][0]['geometry']['lat']
+  lon = data['results'][0]['geometry']['lng']
+  return lat, lon
+
+
+def get_forecast(lat, lon):
+    # Construct the URL
+    url = f"https://api.pirateweather.net/forecast/{pirate_key}/{lat},{lon}"
+    # Send a GET request to the URL
+    response = requests.get(url)
+    # Return the JSON data as a dictionary
+    return response.json()
+
+
+def convert_time(unix_time):
+    # Define the Pacific Time zone
+    pacific = pytz.timezone("US/Pacific")
+    # Create a datetime object from the Unix time in GMT
+    gmt_time = datetime.datetime.fromtimestamp(unix_time, pytz.timezone("GMT"))
+    # Convert the datetime object from GMT to Pacific Time
+    pacific_time = gmt_time.astimezone(pacific)
+    # Return the time string in the desired format
+    return pacific_time.strftime("%H:%M:%S")
+
+
+lat, lon = get_lat_lon(city)
+forecasts = get_forecast(lat, lon)
+
+prompt = f"""The following is today's weather report:
+Weather summary for the day: {forecasts['daily']['data'][0]['summary']}
+Sunrise: {convert_time(forecasts['daily']['data'][0]['sunriseTime'])}
+Sunset: {convert_time(forecasts['daily']['data'][0]['sunsetTime'])} 
+Min temperature: {forecasts['daily']['data'][0]['temperatureMin']}
+Min temperature time: {convert_time(forecasts['daily']['data'][0]['temperatureMinTime'])}
+Max temperature: {forecasts['daily']['data'][0]['temperatureMax']}
+Max temperature time: {convert_time(forecasts['daily']['data'][0]['temperatureMaxTime'])}
+Humidity: {forecasts['daily']['data'][0]['humidity']}
+Precipitation probability: {forecasts['daily']['data'][0]['precipProbability']}
+Precipitation max time: {convert_time(forecasts['daily']['data'][0]['precipIntensityMaxTime'])}
+Dew point: {forecasts['daily']['data'][0]['dewPoint']}
+Write a {args.style} weather report for today, in the future tense. Assume the reader is interested in today's weather.
+
+Round the temperatures to the nearest degree. 
+
+Use a {args.tone} tone.
+
+There won't be any more updates until tomorrow. 
+
+Replace the item in the brackets with today's weather report. Do not include items in brackets:
+[article]"""
+
+out = openai.Completion.create(
+    model="text-davinci-003",
+    prompt=prompt,
+    max_tokens=256,
+    temperature=args.temperature,
+    top_p=args.top_p,
+)
+
+print(out['choices'][0]['text'])
